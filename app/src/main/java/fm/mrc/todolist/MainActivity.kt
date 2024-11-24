@@ -356,19 +356,6 @@ fun TodoScreen(context: Context) {
                     )
                     
                     Spacer(modifier = Modifier.height(16.dp))
-                    
-                    TimetableView(
-                        todoItems = todoItems.filter { it.timeSlot != null },
-                        onCheckedChange = { item, checked ->
-                            todoItems = todoItems.map { 
-                                if (it.id == item.id) it.copy(isCompleted = checked)
-                                else it
-                            }
-                        },
-                        onDelete = { item ->
-                            todoItems = todoItems.filter { it.id != item.id }
-                        }
-                    )
                 } else {
                     // Add Todo Input with Date
                     Column(
@@ -682,7 +669,7 @@ fun TimetableInputSection(
             Text("Add New Time Slot")
         }
         
-        // Time Slot Selection
+        // Time Slot Selection - Show only available time slots
         TimeSlotManager.getTimeSlots().forEach { timeSlot ->
             OutlinedButton(
                 onClick = { 
@@ -739,27 +726,29 @@ fun TimetableView(
     val today = LocalDate.now()
     val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     
-    val groupedItems = todoItems
-        .filter { it.date != null && it.timeSlot != null }
-        .groupBy { it.date }
-        .entries
-        .sortedBy { it.key }
+    var expandedDates by remember { mutableStateOf(setOf<LocalDate?>()) }
+    
+    // Completely reworked processing logic
+    val processedItems = remember(todoItems) {
+        todoItems
+            .filter { it.date != null && it.timeSlot != null }
+            .distinctBy { it.id } // Remove any duplicate items
+            .groupBy { it.date }
+            .mapValues { (_, items) -> 
+                items.distinctBy { Triple(it.id, it.title, it.timeSlot?.id) }
+            }
+            .toList()
+            .sortedBy { (date, _) -> date }
+            .distinctBy { (date, _) -> date } // Ensure only one entry per date
+    }
 
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier.padding(vertical = 8.dp)
     ) {
-        // Add spacing and divider at the top
-        item {
-            Spacer(modifier = Modifier.height(16.dp))
-            HorizontalDivider(
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.outlineVariant
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-
-        items(groupedItems) { (date, items) ->
+        items(processedItems) { (date, items) ->
+            val isExpanded = date == today || expandedDates.contains(date)
+            
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -774,32 +763,55 @@ fun TimetableView(
                         .fillMaxWidth()
                         .padding(16.dp)
                 ) {
-                    Text(
-                        text = if (date == today) "Today" else date?.format(dateFormatter) ?: "",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // Group items by time slot
-                    val timeSlotGroups = items.groupBy { it.timeSlot }
-                    timeSlotGroups.forEach { (timeSlot, timeSlotItems) ->
-                        if (timeSlot != null) {
-                            Text(
-                                text = "${timeSlot.displayName} (${timeSlot.startTime} - ${timeSlot.endTime})",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.padding(vertical = 4.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = date != today) {
+                                expandedDates = if (isExpanded) {
+                                    expandedDates - date
+                                } else {
+                                    expandedDates + date
+                                }
+                            },
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (date == today) "Today" else date?.format(dateFormatter) ?: "",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        
+                        if (date != today) {
+                            Icon(
+                                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = if (isExpanded) "Collapse" else "Expand",
+                                tint = MaterialTheme.colorScheme.primary
                             )
-                            timeSlotItems.forEach { item ->
-                                TodoItemRow(
-                                    item = item,
-                                    onCheckedChange = { checked -> onCheckedChange(item, checked) },
-                                    onDelete = { onDelete(item) }
+                        }
+                    }
+                    
+                    if (isExpanded) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        val timeSlotGroups = items.groupBy { it.timeSlot }
+                        timeSlotGroups.forEach { (timeSlot, timeSlotItems) ->
+                            if (timeSlot != null) {
+                                Text(
+                                    text = "${timeSlot.displayName} (${timeSlot.startTime} - ${timeSlot.endTime})",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.padding(vertical = 4.dp)
                                 )
+                                timeSlotItems.forEach { item ->
+                                    TodoItemRow(
+                                        item = item,
+                                        onCheckedChange = { checked -> onCheckedChange(item, checked) },
+                                        onDelete = { onDelete(item) }
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
                         }
                     }
                 }
