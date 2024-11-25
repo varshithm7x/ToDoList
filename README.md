@@ -72,11 +72,20 @@ A feature-rich Todo List application built with Jetpack Compose that offers thre
 
 ## Contributing
 
-1. Fork the project
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+1. Fork the project from [https://github.com/varshithm7x/ToDoList](https://github.com/varshithm7x/ToDoList)
+2. Create your feature branch
+   ```bash
+   git checkout -b feature/YourFeatureName
+   ```
+3. Commit your changes
+   ```bash
+   git commit -m 'Add some YourFeatureName'
+   ```
+4. Push to the branch
+   ```bash
+   git push origin feature/YourFeatureName
+   ```
+5. Open a Pull Request at [https://github.com/varshithm7x/ToDoList/pulls](https://github.com/varshithm7x/ToDoList/pulls)
 
 ## License
 
@@ -86,4 +95,4 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 
 - Material Design 3 for the modern UI components
 - Jetpack Compose for the declarative UI framework
-- The Android development community for inspiration and resources 
+- The Android development community for inspiration and resources  
