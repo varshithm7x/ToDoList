@@ -27,7 +27,6 @@ A modern Android todo list application built with Jetpack Compose and Firebase, 
 
 - **User Interface**:
   - Material Design 3
-  - Dark/Light Theme Support
   - Smooth Animations
   - Intuitive Navigation
 
