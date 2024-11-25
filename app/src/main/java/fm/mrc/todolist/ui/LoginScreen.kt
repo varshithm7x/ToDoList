@@ -11,6 +11,8 @@ import fm.mrc.todolist.data.ServerUserManager
 import androidx.compose.foundation.clickable
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import android.content.Context
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,7 +26,27 @@ fun LoginScreen(
     var showError by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
+    var rememberMe by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        val prefs = context.getSharedPreferences("LoginPrefs", Context.MODE_PRIVATE)
+        val savedEmail = prefs.getString("rememberedEmail", "")
+        val savedPassword = prefs.getString("rememberedPassword", "")
+        
+        if (!savedEmail.isNullOrEmpty() && !savedPassword.isNullOrEmpty()) {
+            email = savedEmail
+            password = savedPassword
+            rememberMe = true
+            scope.launch {
+                val result = userManager.signIn(email, password)
+                if (result.isSuccess) {
+                    onLoginSuccess()
+                }
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -34,68 +56,88 @@ fun LoginScreen(
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = if (isNewUser) "Create Account" else "Sign In",
-            style = MaterialTheme.typography.headlineMedium
+            text = if (isNewUser) "Create Account" else "Login",
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(bottom = 32.dp)
         )
-
-        Spacer(modifier = Modifier.height(32.dp))
 
         OutlinedTextField(
             value = email,
             onValueChange = { email = it },
             label = { Text("Email") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
         )
-
-        Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(
             value = password,
             onValueChange = { password = it },
             label = { Text("Password") },
             visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
         )
 
-        if (showError) {
-            Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = rememberMe,
+                onCheckedChange = { rememberMe = it }
+            )
             Text(
-                text = errorMessage,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall
+                text = "Remember Me",
+                modifier = Modifier.clickable { rememberMe = !rememberMe }
             )
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        if (showError) {
+            Text(
+                text = errorMessage,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+        }
 
         Button(
             onClick = {
+                isLoading = true
+                showError = false
                 scope.launch {
-                    isLoading = true
-                    showError = false
-                    try {
-                        val result = if (isNewUser) {
-                            userManager.signUp(email, password)
-                        } else {
-                            userManager.signIn(email, password)
-                        }
-                        
-                        result.fold(
-                            onSuccess = { onLoginSuccess() },
-                            onFailure = { 
-                                showError = true
-                                errorMessage = it.message ?: "Authentication failed"
-                            }
-                        )
-                    } catch (e: Exception) {
-                        showError = true
-                        errorMessage = e.message ?: "An error occurred"
-                    } finally {
-                        isLoading = false
+                    val result = if (isNewUser) {
+                        userManager.signUp(email, password)
+                    } else {
+                        userManager.signIn(email, password)
                     }
+                    
+                    if (result.isSuccess) {
+                        if (rememberMe) {
+                            context.getSharedPreferences("LoginPrefs", Context.MODE_PRIVATE)
+                                .edit()
+                                .putString("rememberedEmail", email)
+                                .putString("rememberedPassword", password)
+                                .apply()
+                        }
+                        onLoginSuccess()
+                    } else {
+                        showError = true
+                        errorMessage = if (isNewUser) {
+                            "Failed to create account"
+                        } else {
+                            "Invalid email or password"
+                        }
+                    }
+                    isLoading = false
                 }
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
             enabled = !isLoading && email.isNotBlank() && password.isNotBlank()
         ) {
             if (isLoading) {
@@ -108,12 +150,13 @@ fun LoginScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = if (isNewUser) "Already have an account? Sign In" else "Need an account? Sign Up",
-            modifier = Modifier.clickable { isNewUser = !isNewUser },
-            color = MaterialTheme.colorScheme.primary
-        )
+        TextButton(
+            onClick = { isNewUser = !isNewUser }
+        ) {
+            Text(
+                if (isNewUser) "Already have an account? Sign In" 
+                else "Don't have an account? Sign Up"
+            )
+        }
     }
 } 

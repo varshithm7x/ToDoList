@@ -1,3 +1,50 @@
+# Todo List App
+
+A modern Android todo list application built with Jetpack Compose and Firebase, featuring multiple organization methods and smart notifications.
+
+## Features
+
+- **Multiple Todo Organization Methods**:
+  - Simple List View
+  - Calendar-Based Organization
+  - Time-Based Scheduling
+
+- **User Authentication**:
+  - Email/Password Sign Up
+  - Secure Login
+  - Remember Me Functionality
+  - Auto-login for Returning Users
+
+- **Smart Notifications**:
+  - Automatic Reminders for Tasks
+  - Custom Time Notifications
+  - Calendar-based Alerts
+
+- **Real-time Sync**:
+  - Firebase Backend Integration
+  - Automatic Data Persistence
+  - Cross-device Synchronization
+
+- **User Interface**:
+  - Material Design 3
+  - Dark/Light Theme Support
+  - Smooth Animations
+  - Intuitive Navigation
+
+## Firebase Setup
+
+1. Create a Firebase project at [Firebase Console](https://console.firebase.google.com/)
+2. Add an Android app to your Firebase project:
+   - Package name: `fm.mrc.todolist`
+   - Download `google-services.json`
+3. Enable Authentication:
+   - Go to Authentication > Sign-in method
+   - Enable Email/Password authentication
+4. Set up Realtime Database:
+   - Create a database in test mode
+   - Set the following security rules:
+
+
 ### Architecture Highlights
 - Single Activity Architecture
 - Composable-based UI components
@@ -60,6 +107,7 @@
    - Marking them as complete
    - Deleting them
    - Organizing them by date or time slot
+   - 
 
 ### Troubleshooting
 If you experience issues with data persistence:

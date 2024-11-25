@@ -245,21 +245,14 @@ class ServerUserManager(private val context: Context) {
     }
 
     fun logout() {
-        try {
-            // Remove the todos listener
-            auth.currentUser?.let { firebaseUser ->
-                todosListener?.let { listener ->
-                    database.child("users").child(firebaseUser.uid).child("todos")
-                        .removeEventListener(listener)
-                }
-                todosListener = null
-            }
-            
-            auth.signOut()
-            _currentUser.value = null
-            Log.d("ServerUserManager", "User logged out and listeners cleaned up")
-        } catch (e: Exception) {
-            Log.e("ServerUserManager", "Error during logout", e)
-        }
+        auth.signOut()
+        // Clear remembered credentials
+        context.getSharedPreferences("LoginPrefs", Context.MODE_PRIVATE)
+            .edit()
+            .remove("rememberedEmail")
+            .remove("rememberedPassword")
+            .apply()
+        
+        _currentUser.value = null
     }
 } 

@@ -1,6 +1,7 @@
 package fm.mrc.todolist
 
 import android.os.Bundle
+import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -51,6 +52,7 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CheckCircle
 import fm.mrc.todolist.ui.LoginScreen
 import fm.mrc.todolist.ui.components.LogoutButton
 import fm.mrc.todolist.ui.components.LogoutConfirmationDialog
@@ -62,13 +64,19 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
+import fm.mrc.todolist.util.NotificationHelper
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 
 class MainActivity : ComponentActivity() {
     private lateinit var userManager: ServerUserManager
+    private lateinit var notificationHelper: NotificationHelper
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         userManager = ServerUserManager(this)
+        notificationHelper = NotificationHelper(this)
         
         enableEdgeToEdge()
         setContent {
@@ -77,22 +85,43 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    var isLoggedIn by remember { mutableStateOf(userManager.currentUser.value != null) }
-
-                    if (isLoggedIn) {
+                    val currentUser by userManager.currentUser.collectAsStateWithLifecycle()
+                    
+                    if (currentUser != null) {
                         MainContent(
                             modifier = Modifier.fillMaxSize(),
                             userManager = userManager
                         )
                     } else {
                         LoginScreen(
-                            onLoginSuccess = { isLoggedIn = true },
+                            onLoginSuccess = { /* No need to update isLoggedIn here */ },
                             userManager = userManager
                         )
                     }
                 }
             }
         }
+
+        requestNotificationPermission()
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                requestPermissions(
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    REQUEST_NOTIFICATION_PERMISSION
+                )
+            }
+        }
+    }
+
+    companion object {
+        private const val REQUEST_NOTIFICATION_PERMISSION = 1
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -102,13 +131,11 @@ class MainActivity : ComponentActivity() {
         userManager: ServerUserManager
     ) {
         var showLogoutDialog by remember { mutableStateOf(false) }
-        var isLoggedIn by remember { mutableStateOf(userManager.currentUser.value != null) }
 
         if (showLogoutDialog) {
             LogoutConfirmationDialog(
                 onConfirm = {
                     userManager.logout()
-                    isLoggedIn = false
                     showLogoutDialog = false
                 },
                 onDismiss = {
@@ -133,7 +160,8 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier.padding(paddingValues),
                 context = LocalContext.current,
                 userManager = userManager,
-                onLogout = { showLogoutDialog = true }
+                onLogout = { showLogoutDialog = true },
+                notificationHelper = notificationHelper
             )
         }
     }
@@ -145,7 +173,8 @@ fun TodoScreen(
     modifier: Modifier = Modifier,
     context: Context,
     userManager: ServerUserManager,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    notificationHelper: NotificationHelper
 ) {
     var showTutorial by remember {
         mutableStateOf(
@@ -271,6 +300,14 @@ fun TodoScreen(
                         containerColor = MaterialTheme.colorScheme.primaryContainer
                     )
                 )
+            } else {
+                // Add a TopAppBar for the main screen as well
+                CenterAlignedTopAppBar(
+                    title = { Text("Todo List") },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                )
             }
         },
         floatingActionButton = {
@@ -287,7 +324,7 @@ fun TodoScreen(
                 }
             }
         }
-    ) { padding ->
+    ) { innerPadding ->
         if (showTypeDialog) {
             AlertDialog(
                 onDismissRequest = { showTypeDialog = false },
@@ -385,7 +422,7 @@ fun TodoScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding)
+                    .padding(innerPadding)
                     .padding(16.dp)
             ) {
                 // Input Section
@@ -395,12 +432,14 @@ fun TodoScreen(
                         onTitleChange = { newTodoTitle = it },
                         onAddTodo = { date, timeSlot ->
                             if (newTodoTitle.isNotBlank()) {
-                                todoItems = todoItems + TodoItem(
+                                val newTodo = TodoItem(
                                     id = todoItems.size,
                                     title = newTodoTitle,
                                     date = date,
                                     timeSlot = timeSlot
                                 )
+                                todoItems = todoItems + newTodo
+                                notificationHelper.scheduleNotification(newTodo)
                                 newTodoTitle = ""
                             }
                         }
@@ -425,11 +464,13 @@ fun TodoScreen(
                                     Button(
                                         onClick = {
                                             if (newTodoTitle.isNotBlank()) {
-                                                todoItems = todoItems + TodoItem(
+                                                val newTodo = TodoItem(
                                                     id = todoItems.size,
                                                     title = newTodoTitle,
                                                     date = if (isCalendarView) selectedDate else null
                                                 )
+                                                todoItems = todoItems + newTodo
+                                                notificationHelper.scheduleNotification(newTodo)
                                                 newTodoTitle = ""
                                                 selectedDate = null
                                             }
@@ -468,6 +509,7 @@ fun TodoScreen(
                             }
                         },
                         onDelete = { item ->
+                            notificationHelper.cancelNotification(item.id)
                             todoItems = todoItems.filter { it.id != item.id }
                         }
                     )
@@ -511,6 +553,7 @@ fun TodoScreen(
                                             }
                                         },
                                         onDelete = {
+                                            notificationHelper.cancelNotification(item.id)
                                             todoItems = todoItems.filter { it.id != item.id }
                                         }
                                     )
@@ -539,6 +582,7 @@ fun TodoScreen(
                                             }
                                         },
                                         onDelete = {
+                                            notificationHelper.cancelNotification(item.id)
                                             todoItems = todoItems.filter { it.id != item.id }
                                         }
                                     )
@@ -549,35 +593,89 @@ fun TodoScreen(
                 }
             }
         } else {
-            // Empty homepage with just the FAB
+            // Replace the empty homepage with a conditional check for todos
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding),
+                    .padding(innerPadding),
                 contentAlignment = Alignment.Center
             ) {
-                var displayedText by remember { mutableStateOf("") }
-                val fullText = "Welcome to Todo List"
-                var textAlpha by remember { mutableStateOf(0f) }
-                
-                LaunchedEffect(Unit) {
-                    // Fade in animation
-                    animate(0f, 1f) { value, _ ->
-                        textAlpha = value
+                if (todoItems.isEmpty()) {
+                    // Show welcome screen for users with no todos
+                    var displayedText by remember { mutableStateOf("") }
+                    val fullText = "Welcome to Todo List"
+                    var textAlpha by remember { mutableStateOf(0f) }
+                    
+                    LaunchedEffect(Unit) {
+                        // Fade in animation
+                        animate(0f, 1f) { value, _ ->
+                            textAlpha = value
+                        }
+                        // Typewriter animation
+                        for (i in fullText.indices) {
+                            delay(100)
+                            displayedText = fullText.substring(0, i + 1)
+                        }
                     }
-                    // Typewriter animation
-                    for (i in fullText.indices) {
-                        delay(100) // Adjust this value to control typing speed
-                        displayedText = fullText.substring(0, i + 1)
+                    
+                    Text(
+                        text = displayedText,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.graphicsLayer(alpha = textAlpha)
+                    )
+                } else {
+                    // Show existing todos in a simplified view
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(todoItems) { item ->
+                            ElevatedCard(
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = { showMenu = true }
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = item.title,
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        item.date?.let { date ->
+                                            Text(
+                                                text = date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                            )
+                                        }
+                                        item.timeSlot?.let { timeSlot ->
+                                            Text(
+                                                text = "${timeSlot.startTime} - ${timeSlot.endTime}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                            )
+                                        }
+                                    }
+                                    if (item.isCompleted) {
+                                        Icon(
+                                            imageVector = Icons.Filled.CheckCircle,
+                                            contentDescription = "Completed",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-                
-                Text(
-                    text = displayedText,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.graphicsLayer(alpha = textAlpha)
-                )
             }
         }
     }
