@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">ToDoList</string>
+    <string name="logout">Logout</string>
+    <string name="logout_confirmation">Are you sure you want to logout?</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
 </resources>

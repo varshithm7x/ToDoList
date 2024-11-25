@@ -12,38 +12,19 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
 import fm.mrc.todolist.ui.theme.ToDoListTheme
 import android.content.Context
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import java.time.LocalDate
-import java.time.Instant
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
-import com.google.gson.TypeAdapter
-import com.google.gson.stream.JsonReader
-import com.google.gson.stream.JsonWriter
 import android.app.DatePickerDialog
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.DisposableEffect
 import java.util.Calendar
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.foundation.clickable
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.animation.core.animate
@@ -52,79 +33,120 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.PaddingValues
 import kotlinx.coroutines.delay
 import android.app.TimePickerDialog
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.text.style.TextAlign
-
-data class TodoItem(
-    val id: Int,
-    var title: String,
-    var isCompleted: Boolean = false,
-    val date: LocalDate? = null,
-    val timeSlot: TimeSlot? = null
-)
-
-data class TimeSlot(
-    val id: Int,
-    val startTime: String,
-    val endTime: String,
-    val displayName: String
-)
-
-class TimeSlotManager {
-    companion object {
-        private var nextId = 0
-        private val timeSlots = mutableListOf<TimeSlot>()
-
-        fun addTimeSlot(startTime: String, endTime: String, displayName: String): TimeSlot {
-            val timeSlot = TimeSlot(nextId++, startTime, endTime, displayName)
-            timeSlots.add(timeSlot)
-            return timeSlot
-        }
-
-        fun getTimeSlots(): List<TimeSlot> = timeSlots.toList()
-
-        fun removeTimeSlot(id: Int) {
-            timeSlots.removeAll { it.id == id }
-        }
-    }
-}
-
-class LocalDateAdapter : TypeAdapter<LocalDate>() {
-    override fun write(out: JsonWriter, value: LocalDate?) {
-        if (value == null) {
-            out.nullValue()
-        } else {
-            out.value(value.toString())
-        }
-    }
-
-    override fun read(input: JsonReader): LocalDate? {
-        val dateStr = input.nextString()
-        return if (dateStr == "null") null else LocalDate.parse(dateStr)
-    }
-}
+import fm.mrc.todolist.data.TodoItem
+import fm.mrc.todolist.data.TimeSlot
+import fm.mrc.todolist.data.TimeSlotManager
+import fm.mrc.todolist.data.ServerUserManager
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.CalendarMonth
+import fm.mrc.todolist.ui.LoginScreen
+import fm.mrc.todolist.ui.components.LogoutButton
+import fm.mrc.todolist.ui.components.LogoutConfirmationDialog
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import android.util.Log
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 
 class MainActivity : ComponentActivity() {
+    private lateinit var userManager: ServerUserManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        userManager = ServerUserManager(this)
+        
         enableEdgeToEdge()
         setContent {
-            ToDoListTheme {
+            ToDoListTheme(userPreferredTheme = "light") {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    TodoScreen(context = this)
+                    var isLoggedIn by remember { mutableStateOf(userManager.currentUser.value != null) }
+
+                    if (isLoggedIn) {
+                        MainContent(
+                            modifier = Modifier.fillMaxSize(),
+                            userManager = userManager
+                        )
+                    } else {
+                        LoginScreen(
+                            onLoginSuccess = { isLoggedIn = true },
+                            userManager = userManager
+                        )
+                    }
                 }
             }
+        }
+    }
+
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    fun MainContent(
+        modifier: Modifier = Modifier,
+        userManager: ServerUserManager
+    ) {
+        var showLogoutDialog by remember { mutableStateOf(false) }
+        var isLoggedIn by remember { mutableStateOf(userManager.currentUser.value != null) }
+
+        if (showLogoutDialog) {
+            LogoutConfirmationDialog(
+                onConfirm = {
+                    userManager.logout()
+                    isLoggedIn = false
+                    showLogoutDialog = false
+                },
+                onDismiss = {
+                    showLogoutDialog = false
+                }
+            )
+        }
+
+        Scaffold(
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = { Text("Todo List") },
+                    actions = {
+                        LogoutButton(
+                            onLogout = { showLogoutDialog = true }
+                        )
+                    }
+                )
+            }
+        ) { paddingValues ->
+            TodoScreen(
+                modifier = Modifier.padding(paddingValues),
+                context = LocalContext.current,
+                userManager = userManager,
+                onLogout = { showLogoutDialog = true }
+            )
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TodoScreen(context: Context) {
+fun TodoScreen(
+    modifier: Modifier = Modifier,
+    context: Context,
+    userManager: ServerUserManager,
+    onLogout: () -> Unit
+) {
     var showTutorial by remember {
         mutableStateOf(
             context.getSharedPreferences("TodoPrefs", Context.MODE_PRIVATE)
@@ -144,9 +166,33 @@ fun TodoScreen(context: Context) {
         )
     }
 
+    val scope = rememberCoroutineScope()
+    val currentUser by userManager.currentUser.collectAsStateWithLifecycle()
     var todoItems by remember { 
-        mutableStateOf(loadTodoItems(context))
+        mutableStateOf(currentUser?.todos ?: emptyList())
     }
+
+    // Update todoItems whenever currentUser changes
+    LaunchedEffect(currentUser) {
+        todoItems = currentUser?.todos ?: emptyList()
+    }
+
+    // Save items whenever the list changes
+    LaunchedEffect(todoItems) {
+        if (currentUser != null) {
+            try {
+                scope.launch {
+                    delay(500) // Debounce delay
+                    userManager.saveUserTodos(todoItems)
+                }
+            } catch (e: Exception) {
+                if (e !is CancellationException) {
+                    Log.e("TodoScreen", "Error saving todos", e)
+                }
+            }
+        }
+    }
+
     var newTodoTitle by remember { mutableStateOf("") }
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
@@ -158,11 +204,6 @@ fun TodoScreen(context: Context) {
     // Track expanded states for each day
     val expandedStates = remember {
         mutableStateMapOf<LocalDate, Boolean>()
-    }
-
-    // Save items whenever the list changes
-    LaunchedEffect(todoItems) {
-        saveTodoItems(context, todoItems)
     }
 
     if (showDatePicker) {
@@ -211,8 +252,18 @@ fun TodoScreen(context: Context) {
                             isTimetableView = false
                         }) {
                             Icon(
-                                imageVector = Icons.Default.ArrowBack,
-                                contentDescription = "Back to home"
+                                imageVector = Icons.Filled.ArrowBack,
+                                contentDescription = "Back to home",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = onLogout) {
+                            Icon(
+                                imageVector = Icons.Filled.ExitToApp,
+                                contentDescription = "Logout",
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     },
@@ -230,7 +281,7 @@ fun TodoScreen(context: Context) {
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Add,
+                        imageVector = Icons.Filled.Add,
                         contentDescription = "Add Todo"
                     )
                 }
@@ -260,7 +311,7 @@ fun TodoScreen(context: Context) {
                                 horizontalArrangement = Arrangement.Center
                             ) {
                                 Icon(
-                                    Icons.Default.List,
+                                    Icons.Filled.List,
                                     contentDescription = "List View",
                                     modifier = Modifier.size(24.dp)
                                 )
@@ -285,7 +336,7 @@ fun TodoScreen(context: Context) {
                                 horizontalArrangement = Arrangement.Center
                             ) {
                                 Icon(
-                                    Icons.Default.CalendarMonth,
+                                    Icons.Filled.CalendarMonth,
                                     contentDescription = "Calendar View",
                                     modifier = Modifier.size(24.dp)
                                 )
@@ -310,7 +361,7 @@ fun TodoScreen(context: Context) {
                                 horizontalArrangement = Arrangement.Center
                             ) {
                                 Icon(
-                                    Icons.Default.Schedule,
+                                    Icons.Filled.Schedule,
                                     contentDescription = "Time Based",
                                     modifier = Modifier.size(24.dp)
                                 )
@@ -577,31 +628,13 @@ fun TodoItemRow(
             }
             IconButton(onClick = onDelete) {
                 Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete todo"
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = "Delete todo",
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
     }
-}
-
-private fun saveTodoItems(context: Context, items: List<TodoItem>) {
-    val sharedPrefs = context.getSharedPreferences("TodoPrefs", Context.MODE_PRIVATE)
-    val gson = Gson().newBuilder()
-        .registerTypeAdapter(LocalDate::class.java, LocalDateAdapter())
-        .create()
-    val json = gson.toJson(items)
-    sharedPrefs.edit().putString("todos", json).apply()
-}
-
-private fun loadTodoItems(context: Context): List<TodoItem> {
-    val sharedPrefs = context.getSharedPreferences("TodoPrefs", Context.MODE_PRIVATE)
-    val gson = Gson().newBuilder()
-        .registerTypeAdapter(LocalDate::class.java, LocalDateAdapter())
-        .create()
-    val json = sharedPrefs.getString("todos", "[]")
-    val type = object : TypeToken<List<TodoItem>>() {}.type
-    return gson.fromJson(json, type)
 }
 
 @Composable
@@ -784,7 +817,7 @@ fun TimetableView(
                         
                         if (date != today) {
                             Icon(
-                                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                imageVector = if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                                 contentDescription = if (isExpanded) "Collapse" else "Expand",
                                 tint = MaterialTheme.colorScheme.primary
                             )
@@ -897,7 +930,7 @@ fun AddTimeSlotDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Schedule, contentDescription = "Start Time")
+                        Icon(Icons.Filled.Schedule, contentDescription = "Start Time")
                         Text(if (startTime.isEmpty()) "Select Start Time" else "Start Time: $startTime")
                     }
                 }
@@ -911,7 +944,7 @@ fun AddTimeSlotDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Schedule, contentDescription = "End Time")
+                        Icon(Icons.Filled.Schedule, contentDescription = "End Time")
                         Text(if (endTime.isEmpty()) "Select End Time" else "End Time: $endTime")
                     }
                 }
@@ -948,22 +981,22 @@ fun TutorialDialog(
         Triple(
             "Welcome to Todo List!",
             "This app helps you organize your tasks in three different ways.",
-            Icons.Default.List
+            Icons.Filled.List
         ),
         Triple(
             "Simple List",
             "Create basic todo items without dates or times. Perfect for quick tasks and shopping lists.",
-            Icons.Default.List
+            Icons.Filled.List
         ),
         Triple(
             "Calendar Based",
             "Organize your tasks by date. Great for planning ahead and managing deadlines.",
-            Icons.Default.CalendarMonth
+            Icons.Filled.CalendarMonth
         ),
         Triple(
             "Time Based",
             "Schedule tasks in specific time slots. Ideal for daily routines and appointments.",
-            Icons.Default.Schedule
+            Icons.Filled.Schedule
         )
     )
 
