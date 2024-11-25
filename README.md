@@ -1,4 +1,4 @@
-# Modern Todo List App
+#Todo List App
 
 A feature-rich Todo List application built with Jetpack Compose that offers three distinct ways to organize tasks: Simple List, Calendar-based, and Time-based scheduling.
 
