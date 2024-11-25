@@ -2,6 +2,8 @@
 
 A modern Android todo list application built with Jetpack Compose and Firebase, featuring multiple organization methods and smart notifications.
 
+You can directly download the application to test from here: https://drive.google.com/file/d/1hP3c3yJJ6MqIBhdcV17yOHE8jJBTF6h9/view?usp=sharing
+
 ## Features
 
 - **Multiple Todo Organization Methods**:
