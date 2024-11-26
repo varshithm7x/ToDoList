@@ -90,7 +90,7 @@ You can directly download the application to test from here: https://drive.googl
 
 ### Installation
 1. Clone the repository   ```bash
-   git clone https://github.com/yourusername/todo-list-app.git   ```
+   git clone https://github.com/varshithm7x/todo-list-app.git   ```
 2. Open the project in Android Studio
 3. Ensure you have placed the `google-services.json` file in the app directory
 4. Build and run the application
