@@ -1,7 +1,8 @@
-import * as React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { database } from '../firebase';
-import { ref, onValue, update, remove, DataSnapshot, get } from 'firebase/database';
+import { ref, onValue, update, remove, get } from 'firebase/database';
+import type { DataSnapshot } from 'firebase/database';
 import { Todo } from '../types/Todo';
 import {
   Box,
