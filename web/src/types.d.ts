@@ -1,0 +1,11 @@
+declare module '@mui/material';
+declare module '@mui/material/*';
+declare module '@mui/icons-material';
+declare module '@mui/icons-material/*';
+declare module '@mui/x-date-pickers';
+declare module '@mui/x-date-pickers/*';
+declare module 'date-fns';
+declare module 'firebase/*';
+declare module 'react-router-dom';
+declare module '@emotion/react';
+declare module '@emotion/styled'; 
