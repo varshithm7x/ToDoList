@@ -4,6 +4,10 @@ A modern Android todo list application built with Jetpack Compose and Firebase, 
 
 You can directly download the application to test from here: https://drive.google.com/file/d/1hP3c3yJJ6MqIBhdcV17yOHE8jJBTF6h9/view?usp=sharing
 
+## What's New
+
+The website of Todolist is launched and is completely synced with the android application you can access the website from here: https://to-do-list-p5al.vercel.app/
+
 ## Features
 
 - **Multiple Todo Organization Methods**:
